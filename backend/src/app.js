@@ -52,9 +52,13 @@ app.use("/api/v1/admin",adminRouter);
 import profileRouter from "./routes/profile.routes.js";
 app.use("/api/v1/profile",profileRouter);
 
+//chat routes
 import chatRouter from './routes/chat.routes.js'
 app.use("/api/v1/chat", chatRouter)
 
+//job routes
+import jobRouter from './routes/job.routes.js';
+app.use("/api/v1/jobs", jobRouter);
 
 // Global Error Handler
 app.use((err, req, res, next) => {

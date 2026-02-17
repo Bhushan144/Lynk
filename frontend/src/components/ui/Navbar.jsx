@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
-import { Home, Briefcase, MessageSquare, User, LogOut, Menu, X, Bell, Lock, LayoutDashboard, Settings, CreditCard, Info } from "lucide-react";
+import { Home, Briefcase, MessageSquare, User, LogOut, Menu, X, Bell, Lock, LayoutDashboard, Settings, CreditCard, Info, FileText } from "lucide-react";
 import { logout } from "../../features/authSlice";
 import Logo from "../../assets/lynk-logo_afterLogin.svg";
 
@@ -12,6 +12,7 @@ const Navbar = ({ isLocked = false }) => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     const isAdmin = user?.role === "ADMIN"; // Check if user is admin
+    const isStudent = user?.role?.toUpperCase() === "STUDENT"; // ← ADDED
 
     const isActive = (path) => {
         return location.pathname === path;
@@ -234,6 +235,21 @@ const Navbar = ({ isLocked = false }) => {
                                             </Link>
                                         )
                                     )}
+
+                                    {/* ── My Applications — students only ── */}
+                                    {isStudent && !isLocked && (
+                                        <Link
+                                            to="/my-applications"
+                                            className={`flex items-center gap-3 px-4 py-2 text-sm transition-colors ${
+                                                isActive("/my-applications")
+                                                    ? "text-black font-semibold bg-gray-50"
+                                                    : "text-gray-700 hover:bg-gray-50"
+                                            }`}
+                                        >
+                                            <FileText className="h-4 w-4" />
+                                            My Applications
+                                        </Link>
+                                    )}
                                     
                                     {/* Settings Link - Now Active */}
                                     <Link 
@@ -433,6 +449,22 @@ const Navbar = ({ isLocked = false }) => {
                                     >
                                         <User className="h-5 w-5" />
                                         Profile
+                                    </Link>
+                                )}
+
+                                {/* ── My Applications — students only, mobile ── */}
+                                {isStudent && !isLocked && (
+                                    <Link
+                                        to="/my-applications"
+                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium transition-all ${
+                                            isActive("/my-applications")
+                                                ? "text-black bg-gray-100"
+                                                : "text-gray-700 hover:bg-gray-50"
+                                        }`}
+                                        onClick={() => setIsMobileMenuOpen(false)}
+                                    >
+                                        <FileText className="h-5 w-5" />
+                                        My Applications
                                     </Link>
                                 )}
 

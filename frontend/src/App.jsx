@@ -4,207 +4,256 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { login, logout } from "./features/authSlice";
 import api from "./utils/axios";
 
-// Pages
+// Pages — Auth
 import Login from "./pages/Auth/Login";
 import Register from "./pages/Auth/Register";
-import Landing from "./pages/Landing/Landing";
-import Feed from './pages/Feed/Feed'
 import Verification from "./pages/Auth/Verification";
-import Layout from "./components/Layout/Layout";
-import AdminDashboard from "./pages/Admin/AdminDashboard";
 
+// Pages — Public
+import Landing from "./pages/Landing/Landing";
+import About from "./pages/About/About";
+
+// Pages — Layout wrapper
+import Layout from "./components/Layout/Layout";
+
+// Pages — Verified Users
+import Feed from "./pages/Feed/Feed";
 import Profile from "./pages/Profile/Profile";
 import PublicProfile from "./pages/Profile/PublicProfile";
-import About from "./pages/About/About";
-import Settings from './pages/Settings/Settings'
-import Chat from './pages/Chat/Chat'
+import Settings from "./pages/Settings/Settings";
+import Chat from "./pages/Chat/Chat";
+
+// Pages — Jobs
+import JobsPage from "./pages/Student/JobsPage";
+import JobApplications from "./pages/Alumni/JobApplications";
+import PostJob from "./pages/Alumni/PostJob";
+import MyApplications from './pages/Student/MyApplications';
+
+// Pages — Admin
+import AdminDashboard from "./pages/Admin/AdminDashboard";
+
+// ─────────────────────────────────────────────
+// ROUTE GUARDS — defined OUTSIDE App() so React
+// doesn't remount children on every render
+// ─────────────────────────────────────────────
+
+// 1. Must be logged in + verified
+const VerifiedRoute = ({ auth, children }) => {
+    if (!auth.status) return <Navigate to="/login" replace />;
+    if (auth.user?.verificationStatus !== "VERIFIED") return <Navigate to="/verification" replace />;
+    return children;
+};
+
+// 2. Must be logged in but NOT yet verified (Verification page gate)
+const UnverifiedRoute = ({ auth, children }) => {
+    if (!auth.status) return <Navigate to="/login" replace />;
+    if (auth.user?.verificationStatus === "VERIFIED") return <Navigate to="/" replace />;
+    return children;
+};
+
+// 3. Must be ADMIN
+const AdminRoute = ({ auth, children }) => {
+    if (!auth.status) return <Navigate to="/login" replace />;
+    if (auth.user?.role?.toUpperCase() !== "ADMIN") return <Navigate to="/" replace />;
+    return children;
+};
+
+// 4. Must be verified AND alumni — protects alumni-only pages from students
+const AlumniRoute = ({ auth, children }) => {
+    if (!auth.status) return <Navigate to="/login" replace />;
+    if (auth.user?.verificationStatus !== "VERIFIED") return <Navigate to="/verification" replace />;
+    if (auth.user?.role?.toUpperCase() !== "ALUMNI") return <Navigate to="/jobs" replace />;
+    return children;
+};
+
+// ─────────────────────────────────────────────
 
 function App() {
-  const dispatch = useDispatch();
+    const dispatch = useDispatch();
+    const auth = useSelector((state) => state.auth);
+    const [loading, setLoading] = useState(true);
 
-  // We select the whole auth state to access .user and .status properties
-  const auth = useSelector((state) => state.auth);
-  const [loading, setLoading] = useState(true);
+    // Restore session on page load/refresh
+    useEffect(() => {
+        const checkSession = async () => {
+            try {
+                const { data } = await api.get("/profile/me");
 
-  useEffect(() => {
-    const checkSession = async () => {
-      try {
-        const { data } = await api.get("/profile/me");
+                if (data.success) {
+                    // /profile/me returns the Profile doc with owner populated
+                    // so user data lives inside data.data.owner
+                    const userData = data.data.owner ? data.data.owner : data.data;
+                    dispatch(login(userData));
+                }
+            } catch (error) {
+                // 401 = no valid session — expected on first visit
+                dispatch(logout());
+            } finally {
+                setLoading(false);
+            }
+        };
 
-        if (data.success) {
-          // --- ROBUST DATA HANDLING ---
-          // 1. Check if user is nested inside 'owner' (Profile Endpoint structure)
-          // 2. If not, check if it's in 'data' directly (User Endpoint structure)
-          const userData = data.data.owner ? data.data.owner : data.data;
+        checkSession();
+    }, [dispatch]);
 
-          console.log("✅ App.jsx: Session Restored:", userData); // Check your console for this!
+    // Black screen while session check runs — prevents flash of wrong page
+    if (loading) return <div className="bg-black h-screen" />;
 
-          dispatch(login(userData));
-        }
-      } catch (error) {
-        console.log("Session expired or failed");
-        dispatch(logout());
-      } finally {
-        setLoading(false);
-      }
-    };
-    checkSession();
-  }, [dispatch]);
+    return (
+        <Routes>
 
-  if (loading) return <div className="bg-black h-screen"></div>;
+            {/* ── ROOT: Smart traffic controller ── */}
+            <Route
+                path="/"
+                element={
+                    auth.status ? (
+                        auth.user?.role?.toUpperCase() === "ADMIN" ? (
+                            <Navigate to="/admin" replace />
+                        ) : auth.user?.verificationStatus === "VERIFIED" ? (
+                            <Layout><Feed /></Layout>
+                        ) : (
+                            <Navigate to="/verification" replace />
+                        )
+                    ) : (
+                        <Landing />
+                    )
+                }
+            />
 
-  // --- GUARDS ---
+            {/* ── PUBLIC ROUTES ── */}
+            <Route path="/about" element={<Layout><About /></Layout>} />
+            <Route path="/login" element={!auth.status ? <Login /> : <Navigate to="/" replace />} />
+            <Route path="/register" element={!auth.status ? <Register /> : <Navigate to="/" replace />} />
 
-  // 1. Guard: Only for Verified Users
-  const VerifiedRoute = ({ children }) => {
-    if (!auth.status) return <Navigate to="/login" />;
+            {/* ── VERIFICATION GATE ── */}
+            <Route
+                path="/verification"
+                element={
+                    <UnverifiedRoute auth={auth}>
+                        <Verification />
+                    </UnverifiedRoute>
+                }
+            />
 
-    // Check if user exists before checking verificationStatus
-    if (auth.user?.verificationStatus !== "VERIFIED") return <Navigate to="/verification" />;
+            {/* ── VERIFIED USER ROUTES ── */}
 
-    return children;
-  };
+            {/* Feed (home) */}
+            <Route
+                path="/feed"
+                element={
+                    <VerifiedRoute auth={auth}>
+                        <Layout><Feed /></Layout>
+                    </VerifiedRoute>
+                }
+            />
 
-  // 2. Guard: Only for Unverified Users (The Gate)
-  const UnverifiedRoute = ({ children }) => {
-    if (!auth.status) return <Navigate to="/login" />;
-    if (auth.user?.verificationStatus === "VERIFIED") return <Navigate to="/" />;
-    return children;
-  };
+            {/* Jobs Hub — shows StudentJobs or AlumniDashboard based on role */}
+            <Route
+                path="/jobs"
+                element={
+                    <VerifiedRoute auth={auth}>
+                        <Layout><JobsPage /></Layout>
+                    </VerifiedRoute>
+                }
+            />
 
-  // 3. Guard: Only for Admins
-  const AdminRoute = ({ children }) => {
-    if (!auth.status) return <Navigate to="/login" />;
+            {/* Chat */}
+            <Route
+                path="/chat"
+                element={
+                    <VerifiedRoute auth={auth}>
+                        <Layout><Chat /></Layout>
+                    </VerifiedRoute>
+                }
+            />
 
-    // If user is NOT an admin, kick them back to home
-    if (auth.user?.role !== "ADMIN") return <Navigate to="/" />;
+            {/* Own Profile */}
+            <Route
+                path="/profile"
+                element={
+                    <VerifiedRoute auth={auth}>
+                        <Layout><Profile /></Layout>
+                    </VerifiedRoute>
+                }
+            />
 
-    return children;
-  };
+            {/* Public Profile (view others) */}
+            <Route
+                path="/profile/:id"
+                element={
+                    <VerifiedRoute auth={auth}>
+                        <Layout><PublicProfile /></Layout>
+                    </VerifiedRoute>
+                }
+            />
 
-  return (
-    <Routes>
-      {/* ROOT PATH: Traffic Controller */}
-      <Route
-        path="/"
-        element={
-          auth.status ? (
-            // 1. Check if ADMIN first
-            auth.user?.role === "ADMIN" ? (
-              <Navigate to="/admin" replace />
-            ) : (
-              // 2. If Student/Alumni, check Verification
-              auth.user?.verificationStatus === "VERIFIED" ? (
-                <Layout>
-                  <Feed />
-                </Layout>
-              ) : (
-                <Navigate to="/verification" />
-              )
-            )
-          ) : (
-            // 3. If Not Logged In, show Landing
-            <Landing />
-          )
-        }
-      />
+            {/* Settings */}
+            <Route
+                path="/settings"
+                element={
+                    <VerifiedRoute auth={auth}>
+                        <Layout><Settings /></Layout>
+                    </VerifiedRoute>
+                }
+            />
 
-      <Route 
-        path="/about" 
-        element={
-          <Layout>
-            <About />
-          </Layout>
-        } 
-      />
+            {/* ── ALUMNI-ONLY ROUTES ── */}
 
-      {/* AUTH PATHS */}
-      <Route path="/login" element={!auth.status ? <Login /> : <Navigate to="/" />} />
-      <Route path="/register" element={!auth.status ? <Register /> : <Navigate to="/" />} />
+            {/* Post a Job */}
+            <Route
+                path="/post-job"
+                element={
+                    <AlumniRoute auth={auth}>
+                        <Layout><PostJob /></Layout>
+                    </AlumniRoute>
+                }
+            />
 
-      {/* THE VERIFICATION GATE */}
-      <Route
-        path="/verification"
-        element={
-          <UnverifiedRoute>
-            <Verification />
-          </UnverifiedRoute>
-        }
-      />
+            {/* View Applicants for a specific job */}
+            <Route
+                path="/applications/:jobId"
+                element={
+                    <AlumniRoute auth={auth}>
+                        <Layout><JobApplications /></Layout>
+                    </AlumniRoute>
+                }
+            />
 
-      {/* PROTECTED APP PATHS (Require Verification) */}
+            {/* ── ADMIN ROUTE ── */}
+            <Route
+                path="/admin"
+                element={
+                    <AdminRoute auth={auth}>
+                        <AdminDashboard />
+                    </AdminRoute>
+                }
+            />
 
-      {/* 1. Jobs (Placeholder for now) */}
-      <Route
-        path="/jobs"
-        element={
-          <VerifiedRoute>
-            <Layout>
-              <h1 className="p-10">Jobs Page</h1>
-            </Layout>
-          </VerifiedRoute>
-        }
-      />
+            <Route path="/my-applications" element={
+                <VerifiedRoute auth={auth}>
+                    <Layout><MyApplications /></Layout>
+                </VerifiedRoute>
+            } />
 
-      {/* 2. Chat (Placeholder for now) */}
-      <Route
-        path="/chat"
-        element={
-          <VerifiedRoute>
-            <Layout>
-              <Chat/>
-            </Layout>
-          </VerifiedRoute>
-        }
-      />
+            {/* ── 404 CATCH-ALL ── */}
+            <Route
+                path="*"
+                element={
+                    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
+                        <h1 className="text-6xl font-bold text-gray-900">404</h1>
+                        <p className="text-gray-500 mt-2 mb-6">This page doesn't exist.</p>
+                        <a
+                            href="/"
+                            className="bg-black text-white px-6 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-800 transition-colors"
+                        >
+                            Go Home
+                        </a>
+                    </div>
+                }
+            />
 
-      {/* 3. YOUR PROFILE (View & Edit) */}
-      <Route
-        path="/profile"
-        element={
-          <VerifiedRoute>
-            <Layout>
-              <Profile />
-            </Layout>
-          </VerifiedRoute>
-        }
-      />
-
-      {/* 4. PUBLIC PROFILE (View Others) */}
-      <Route
-        path="/profile/:id"
-        element={
-          <VerifiedRoute>
-            <Layout>
-              <PublicProfile />
-            </Layout>
-          </VerifiedRoute>
-        }
-      />
-
-      {/* 5. SETTINGS PAGE */}
-      <Route
-        path="/settings"
-        element={
-          <VerifiedRoute>
-            <Layout>
-              <Settings />
-            </Layout>
-          </VerifiedRoute>
-        }
-      />
-
-      {/* ADMIN ROUTE - NOW SECURED */}
-      <Route
-        path="/admin"
-        element={
-          <AdminRoute>
-            <AdminDashboard />
-          </AdminRoute>
-        }
-      />
-    </Routes>
-  );
+        </Routes>
+    );
 }
 
 export default App;
