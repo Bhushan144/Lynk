@@ -1,11 +1,8 @@
 import axios from "axios";
 
 const api = axios.create({
-    // The proxy in vite.config.js handles the localhost:8000 part
-    // So we just point to the API root
-    baseURL: import.meta.env.VITE_API_URL
-        ? `${import.meta.env.VITE_API_URL}/api/v1`
-        : "/api/v1", 
+    // Vercel rewrites /api/* to the Render backend, keeping cookies on the same domain
+    baseURL: "/api/v1",  
     withCredentials: true // CRITICAL: This allows the browser to send/receive Cookies
 });
 
