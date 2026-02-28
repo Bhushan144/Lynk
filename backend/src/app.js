@@ -79,7 +79,7 @@ app.use((err, req, res, next) => {
     
     // 2. Handle Custom Errors (like your "File type not supported")
     else if (err) {
-        return res.status(400).json({ 
+        return res.status(err.statusCode || 400).json({ 
             success: false, 
             message: err.message 
         });
