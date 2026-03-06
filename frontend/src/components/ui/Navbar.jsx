@@ -283,7 +283,7 @@ const Navbar = ({ isLocked = false }) => {
 
                     {/* Mobile Menu Button */}
                     <div className="md:hidden flex items-center gap-2">
-                        {!isAdmin && !isLocked && (
+                        {/* {!isAdmin && !isLocked && (
                             <button 
                                 className="relative p-2 text-gray-600 hover:bg-gray-100 rounded-xl"
                                 title="Notifications"
@@ -291,7 +291,7 @@ const Navbar = ({ isLocked = false }) => {
                                 <Bell className="h-5 w-5" />
                                 <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-black rounded-full"></span>
                             </button>
-                        )}
+                        )} */}
                         <button 
                             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
                             className="p-2 text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
