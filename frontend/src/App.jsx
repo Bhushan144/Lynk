@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { login, logout } from "./features/authSlice";
 import api from "./utils/axios";
+import {Analytics} from "@vercel/analytics/react";  
 
 // Pages — Auth
 import Login from "./pages/Auth/Login";
@@ -100,7 +101,8 @@ function App() {
     if (loading) return <div className="bg-black h-screen" />;
 
     return (
-        <Routes>
+        <>
+            <Routes>
 
             {/* ── ROOT: Smart traffic controller ── */}
             <Route
@@ -253,6 +255,8 @@ function App() {
             />
 
         </Routes>
+        <Analytics />
+        </>
     );
 }
 
