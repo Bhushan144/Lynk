@@ -4,6 +4,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { login, logout } from "./features/authSlice";
 import api from "./utils/axios";
 import {Analytics} from "@vercel/analytics/react";  
+import { SpeedInsights } from '@vercel/speed-insights/react';
 
 // Pages — Auth
 import Login from "./pages/Auth/Login";
@@ -256,6 +257,7 @@ function App() {
 
         </Routes>
         <Analytics />
+        <SpeedInsights />
         </>
     );
 }
