@@ -399,9 +399,9 @@ const Chat = () => {
     // RENDER - 🔥 PERFECT HEIGHT: Navbar is 80px (h-20), so Chat = calc(100vh - 80px)
     // ----------------------------------------------------------------------
     return (
-        <div className="flex h-[calc(100vh-80px)] bg-gray-50">
+        <div className="flex h-[calc(100vh-80px)] bg-gray-50 overflow-hidden">
             {/* Left Sidebar */}
-            <div className={`${showSidebar ? 'block' : 'hidden md:block'} w-full md:w-96 bg-white border-r border-gray-200 flex flex-col h-full`}>
+            <div className={`${showSidebar ? 'flex' : 'hidden md:flex'} w-full md:w-96 bg-white border-r border-gray-200 flex-col h-full min-h-0`}>
                 
                 {/* Header */}
                 <div className="p-4 border-b border-gray-200 bg-white flex-shrink-0">
@@ -450,7 +450,7 @@ const Chat = () => {
                 </div>
 
                 {/* Chats List */}
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 min-h-0 overflow-y-auto">
                     {activeTab === "chats" ? (
                         loadingChats ? (
                             <div className="flex items-center justify-center h-32">
@@ -564,7 +564,7 @@ const Chat = () => {
             </div>
 
             {/* Right Side - Chat Area */}
-            <div className={`${!showSidebar ? 'flex' : 'hidden md:flex'} flex-1 flex-col relative h-full`}>
+            <div className={`${!showSidebar ? 'flex' : 'hidden md:flex'} flex-1 flex-col relative h-full min-h-0`}>
                 {selectedChat ? (
                     <>
                         {/* Chat Header */}
@@ -605,7 +605,7 @@ const Chat = () => {
                         </div>
 
                         {/* Messages Area - 🔥 NO MORE UGLY SCROLLBAR */}
-                        <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
+                        <div className="flex-1 min-h-0 overflow-y-auto p-4 bg-gray-50">
                             {loadingMessages ? (
                                 <div className="flex items-center justify-center h-full">
                                     <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
