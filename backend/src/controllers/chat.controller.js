@@ -151,9 +151,15 @@ const sendMessage = asyncHandler(async (req, res) => {
     await conversation.save();
 
     // 3. 🔥 Socket Event - ONLY to RECEIVER (sender has optimistic update)
+    // Convert Mongoose doc to plain object so ObjectIds serialize as strings
+    const messageForSocket = newMessage.toObject();
+    messageForSocket._id = messageForSocket._id.toString();
+    messageForSocket.conversation = messageForSocket.conversation.toString();
+    messageForSocket.sender = messageForSocket.sender.toString();
+
     const receiverSocketId = getReceiverSocketId(receiverId.toString());
     if (receiverSocketId) {
-        io.to(receiverSocketId).emit("newMessage", newMessage);
+        io.to(receiverSocketId).emit("newMessage", messageForSocket);
         console.log(`✅ [SOCKET] Message sent to receiver (${receiverId})`);
     }
 
@@ -224,7 +230,7 @@ const getMyChats = asyncHandler(async(req, res) => {
 });
 
 
-// 6. Get Messages (UPDATED: Mark Read + Reset Count)
+// 6. Get Messages (UPDATED: Mark Read + Reset Count + Notify Sender)
 const getMessages = asyncHandler(async(req, res) => {
     const { conversationId } = req.params;
     const { page = 1, limit = 20 } = req.query; 
@@ -243,14 +249,30 @@ const getMessages = asyncHandler(async(req, res) => {
             // Reset My Badge to 0
             conversation.unreadCounts.set(req.user._id.toString(), 0);
             await conversation.save();
+
+            // 🔥 Find the OTHER participant (the sender of unread messages)
+            const otherUserId = conversation.participants.find(
+                id => id.toString() !== req.user._id.toString()
+            );
+
+            // Mark actual messages as read (for Blue Ticks)
+            const result = await Message.updateMany(
+                { conversation: conversationId, sender: { $ne: req.user._id }, isRead: false },
+                { $set: { isRead: true } }
+            );
+
+            // 🔥 If any messages were marked as read, notify the sender via socket
+            if (result.modifiedCount > 0 && otherUserId) {
+                const senderSocketId = getReceiverSocketId(otherUserId.toString());
+                if (senderSocketId) {
+                    io.to(senderSocketId).emit("messagesRead", {
+                        conversationId: conversationId.toString(),
+                        readBy: req.user._id.toString()
+                    });
+                    console.log(`✅ [SOCKET] Notified sender (${otherUserId}) that messages were read`);
+                }
+            }
         }
-        
-        // Optional: Mark actual messages as read (for Blue Ticks)
-        // Only mark incoming messages as read
-        await Message.updateMany(
-            { conversation: conversationId, sender: { $ne: req.user._id }, isRead: false },
-            { $set: { isRead: true } }
-        );
     }
 
     return res.status(200).json(new ApiResponse(200, messages.reverse(), "Messages fetched"));

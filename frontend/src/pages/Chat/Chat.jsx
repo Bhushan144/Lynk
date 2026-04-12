@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useSocketContext } from "../../context/SocketContext";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
@@ -35,6 +35,20 @@ const Chat = () => {
     // UI Toggles
     const [showSidebar, setShowSidebar] = useState(true);
 
+    // 🔥 REFS: Store current values so socket handlers always read the latest
+    // Without refs, socket event handlers capture stale closure values
+    const selectedChatRef = useRef(null);
+    const userIdRef = useRef(user?._id);
+
+    // Keep refs in sync with state
+    useEffect(() => {
+        selectedChatRef.current = selectedChat;
+    }, [selectedChat]);
+
+    useEffect(() => {
+        userIdRef.current = user?._id;
+    }, [user?._id]);
+
     // ----------------------------------------------------------------------
     // AUTO-SCROLL TO BOTTOM
     // ----------------------------------------------------------------------
@@ -49,7 +63,7 @@ const Chat = () => {
     // ----------------------------------------------------------------------
     // 1. INITIAL DATA FETCHING
     // ----------------------------------------------------------------------
-    const fetchChats = async () => {
+    const fetchChats = useCallback(async () => {
         try {
             setLoadingChats(true);
             const { data } = await api.get("/chat/my-chats");
@@ -60,9 +74,9 @@ const Chat = () => {
         } finally {
             setLoadingChats(false);
         }
-    };
+    }, []);
 
-    const fetchRequests = async () => {
+    const fetchRequests = useCallback(async () => {
         try {
             setLoadingRequests(true);
             const { data } = await api.get("/chat/requests");
@@ -72,15 +86,15 @@ const Chat = () => {
         } finally {
             setLoadingRequests(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         fetchChats();
         fetchRequests();
-    }, []);
+    }, [fetchChats, fetchRequests]);
 
     // ----------------------------------------------------------------------
-    // 2. REAL-TIME LISTENERS (Socket.io) - 🔥 DEEP FIX
+    // 2. REAL-TIME LISTENERS (Socket.io) - 🔥 FIXED: Uses refs, not stale closures
     // ----------------------------------------------------------------------
     useEffect(() => {
         if (!socket) {
@@ -90,51 +104,67 @@ const Chat = () => {
 
         console.log("✅ Socket connected, setting up listeners");
 
-        // 🔥 Handle New Message - Updates sidebar for BOTH sender and receiver
+        // 🔥 Handle New Message - reads from refs so it always has the latest values
         const handleNewMessage = (message) => {
+            const currentSelectedChat = selectedChatRef.current;
+            const currentUserId = userIdRef.current;
+
+            // 🔥 Normalize IDs to strings (prevents ObjectId vs string mismatch)
+            const msgConversationId = message.conversation?.toString?.() || message.conversation;
+            const msgSenderId = message.sender?.toString?.() || message.sender;
+            const msgId = message._id?.toString?.() || message._id;
+
             console.log("📩 [SOCKET EVENT] newMessage received:", {
-                messageId: message._id,
-                sender: message.sender,
-                currentUser: user._id,
-                isMine: message.sender === user._id,
-                conversationId: message.conversation,
+                messageId: msgId,
+                sender: msgSenderId,
+                currentUser: currentUserId,
+                isMine: msgSenderId === currentUserId,
+                conversationId: msgConversationId,
+                selectedChatId: currentSelectedChat?._id,
                 content: message.content?.substring(0, 30)
             });
             
             // 1. If viewing this chat, append message to chat window
-            if (selectedChat?._id === message.conversation) {
+            if (currentSelectedChat?._id === msgConversationId) {
                 setMessages((prev) => {
                     // Avoid duplicates (optimistic update already added it)
-                    const exists = prev.some(m => m._id === message._id);
+                    const exists = prev.some(m => (m._id?.toString?.() || m._id) === msgId);
                     if (exists) {
                         console.log("⚠️ Message already exists, skipping duplicate");
                         return prev;
                     }
                     console.log("✅ Adding message to chat window");
-                    return [...prev, message];
+                    return [...prev, { ...message, _id: msgId, conversation: msgConversationId, sender: msgSenderId }];
                 });
+
+                // 🔥 If this is an incoming message (not mine) and I'm viewing the chat,
+                // tell the server I've read it → triggers blue tick for sender
+                if (msgSenderId !== currentUserId && socket) {
+                    socket.emit("markAsRead", { conversationId: msgConversationId });
+                    console.log("👁️ Emitted markAsRead for conversation:", msgConversationId);
+                }
             }
 
             // 2. 🔥 CRITICAL: Update sidebar for EVERYONE (sender + receiver)
             setConversations((prev) => {
                 console.log("🔄 Updating conversations sidebar...");
-                const existingIndex = prev.findIndex(c => c._id === message.conversation);
+                const existingIndex = prev.findIndex(c => c._id === msgConversationId);
                 
                 if (existingIndex !== -1) {
                     // Update existing conversation
                     const updated = [...prev];
                     const currentChat = updated[existingIndex];
                     
+                    // Re-read ref inside setState callback for freshest value
+                    const activeChatId = selectedChatRef.current?._id;
+
                     updated[existingIndex] = {
                         ...currentChat,
-                        lastMessage: message,
+                        lastMessage: { ...message, _id: msgId, conversation: msgConversationId, sender: msgSenderId },
                         updatedAt: new Date().toISOString(),
-                        // Only increment unread if:
-                        // 1. This is NOT the sender (sender shouldn't see unread badge)
-                        // 2. User is NOT currently viewing this chat
-                        unreadCount: message.sender === user._id 
-                            ? 0  // Sender's own message = 0 unread
-                            : (selectedChat?._id === message.conversation ? 0 : (currentChat.unreadCount || 0) + 1)
+                        unreadCount: msgSenderId === currentUserId 
+                            ? 0
+                            : (activeChatId === msgConversationId ? 0 : (currentChat.unreadCount || 0) + 1)
                     };
                     
                     // 🔥 SORT BY TIMESTAMP - MOST RECENT FIRST
@@ -193,21 +223,48 @@ const Chat = () => {
             fetchChats(); // Refresh to show new accepted connection
         };
 
+        // D. 🔥 Handle Messages Read (Blue Tick update)
+        const handleMessagesRead = (data) => {
+            const conversationId = data.conversationId?.toString?.() || data.conversationId;
+            const currentSelectedChat = selectedChatRef.current;
+
+            console.log("👁️ [SOCKET EVENT] messagesRead received:", {
+                conversationId,
+                readBy: data.readBy,
+                currentChatId: currentSelectedChat?._id
+            });
+
+            // If viewing this conversation, mark all my sent messages as read
+            if (currentSelectedChat?._id === conversationId) {
+                setMessages((prev) =>
+                    prev.map(msg => {
+                        const senderId = msg.sender?.toString?.() || msg.sender;
+                        if (senderId === userIdRef.current && !msg.isRead) {
+                            return { ...msg, isRead: true };
+                        }
+                        return msg;
+                    })
+                );
+            }
+        };
+
         // 🔥 REGISTER EVENT LISTENERS
         socket.on("newMessage", handleNewMessage);
         socket.on("newRequest", handleNewRequest);
         socket.on("requestAccepted", handleRequestAccepted);
+        socket.on("messagesRead", handleMessagesRead);
 
         console.log("✅ Socket listeners registered");
 
-        // 🔥 CLEANUP
+        // 🔥 CLEANUP - only when socket itself changes (not on every selectedChat change!)
         return () => {
             console.log("🧹 Cleaning up socket listeners");
             socket.off("newMessage", handleNewMessage);
             socket.off("newRequest", handleNewRequest);
             socket.off("requestAccepted", handleRequestAccepted);
+            socket.off("messagesRead", handleMessagesRead);
         };
-    }, [socket, selectedChat, user._id]); // All dependencies included
+    }, [socket, fetchChats, fetchRequests]); // ✅ No selectedChat or user._id — they're read from refs
 
     // ----------------------------------------------------------------------
     // 3. LOAD MESSAGES WHEN CHAT IS SELECTED
@@ -604,7 +661,7 @@ const Chat = () => {
                             </div>
                         </div>
 
-                        {/* Messages Area - 🔥 NO MORE UGLY SCROLLBAR */}
+                        {/* Messages Area */}
                         <div className="flex-1 min-h-0 overflow-y-auto p-4 bg-gray-50">
                             {loadingMessages ? (
                                 <div className="flex items-center justify-center h-full">
