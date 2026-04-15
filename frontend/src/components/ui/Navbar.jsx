@@ -1,14 +1,16 @@
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { Home, Briefcase, MessageSquare, User, LogOut, Menu, X, Bell, Lock, LayoutDashboard, Settings, CreditCard, Info, FileText } from "lucide-react";
 import { logout } from "../../features/authSlice";
+import api from "../../utils/axios";
 import Logo from "../../assets/lynk-logo_afterLogin.svg";
 
 const Navbar = ({ isLocked = false }) => {
     const { user } = useSelector((state) => state.auth);
     const dispatch = useDispatch();
     const location = useLocation();
+    const navigate = useNavigate();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     const isAdmin = user?.role === "ADMIN"; // Check if user is admin
@@ -18,8 +20,14 @@ const Navbar = ({ isLocked = false }) => {
         return location.pathname === path;
     };
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
+        try {
+            await api.post("/auth/logout");
+        } catch (err) {
+            // Even if the API call fails, still clear local state
+        }
         dispatch(logout());
+        navigate("/login");
     };
 
     return (
@@ -160,7 +168,8 @@ const Navbar = ({ isLocked = false }) => {
                         )}
                     </div>
 
-                    {/* User Section */}
+                    {/* User Section - Only render when user is logged in */}
+                    {user ? (
                     <div className="hidden md:flex items-center gap-3">
                         {/* Notification Bell - Only show for non-admin and not locked */}
                         {/* {!isAdmin && !isLocked && (
@@ -280,6 +289,22 @@ const Navbar = ({ isLocked = false }) => {
                             </div>
                         </div>
                     </div>
+                    ) : (
+                        <div className="hidden md:flex items-center gap-3">
+                            <Link
+                                to="/login"
+                                className="px-5 py-2 text-sm font-semibold text-gray-700 hover:text-black transition-colors"
+                            >
+                                Log In
+                            </Link>
+                            <Link
+                                to="/register"
+                                className="px-5 py-2 bg-black text-white text-sm font-semibold rounded-xl hover:bg-gray-800 transition-colors"
+                            >
+                                Sign Up
+                            </Link>
+                        </div>
+                    )}
 
                     {/* Mobile Menu Button */}
                     <div className="md:hidden flex items-center gap-2">
@@ -306,6 +331,8 @@ const Navbar = ({ isLocked = false }) => {
             {isMobileMenuOpen && (
                 <div className="md:hidden bg-white border-t border-gray-200 shadow-lg">
                     <div className="px-4 pt-4 pb-6 space-y-1">
+                        {user ? (
+                        <>
                         {/* User Info Mobile */}
                         <div className="flex items-center gap-3 px-3 py-3 mb-4 bg-gray-100 rounded-xl">
                             <div className="w-12 h-12 rounded-full bg-black flex items-center justify-center text-white font-semibold">
@@ -499,6 +526,25 @@ const Navbar = ({ isLocked = false }) => {
                                 Logout
                             </button>
                         </div>
+                        </>
+                        ) : (
+                            <div className="space-y-2">
+                                <Link
+                                    to="/login"
+                                    className="flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium text-gray-700 hover:bg-gray-50 transition-all"
+                                    onClick={() => setIsMobileMenuOpen(false)}
+                                >
+                                    Log In
+                                </Link>
+                                <Link
+                                    to="/register"
+                                    className="flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium bg-black text-white hover:bg-gray-800 transition-all"
+                                    onClick={() => setIsMobileMenuOpen(false)}
+                                >
+                                    Sign Up
+                                </Link>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
