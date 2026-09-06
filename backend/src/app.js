@@ -5,6 +5,7 @@ import morgan from 'morgan'
 import cookieParser from 'cookie-parser'
 import {app} from "./socket.js"
 import multer from 'multer'
+import { globalLimiter } from './middlewares/rateLimit.middleware.js'
 
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -22,6 +23,7 @@ app.use(cors({
 
 app.use(helmet())
 app.use(morgan('dev'))
+app.use(globalLimiter)
 
 app.use(express.json({limit:'16kb'}))  //Parses incoming requests with JSON bodies and only except request where json body is smaller than 16kb
 

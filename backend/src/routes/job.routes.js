@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { postJob, getMyJobs,getAllJobs,applyForJob,getJobApplications,getMyApplications,updateJobStatus,updateApplicationStatus } from "../controllers/job.controller.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
+import { sensitiveLimiter } from "../middlewares/rateLimit.middleware.js";
 
 const router = Router();
 
@@ -17,13 +18,13 @@ const isAlumni = (req, res, next) => {
 };
 
 // Routes
-router.route("/post").post(verifyJWT,isAlumni, postJob);
+router.route("/post").post(verifyJWT, isAlumni, sensitiveLimiter, postJob);
 router.route("/my-jobs").get(verifyJWT,isAlumni, getMyJobs);
 
 router.route("/all").get(verifyJWT,getAllJobs);
 
 // Student Route (Apply)
-router.route("/apply/:jobId").post(verifyJWT,applyForJob);
+router.route("/apply/:jobId").post(verifyJWT, sensitiveLimiter, applyForJob);
 
 router.route("/applications/:jobId").get(verifyJWT,isAlumni, getJobApplications);
 

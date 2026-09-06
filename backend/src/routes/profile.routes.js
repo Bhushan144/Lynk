@@ -2,6 +2,7 @@ import {Router} from 'express'
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 import { getMyProfile, updateProfile,getAllProfiles,getUserProfile,uploadResume,updateBanner } from "../controllers/profile.controller.js";
 import { upload } from '../middlewares/multer.middleware.js'
+import { sensitiveLimiter } from '../middlewares/rateLimit.middleware.js'
 
 let router = Router();
 
@@ -12,7 +13,8 @@ router.route("/update").patch(verifyJWT,updateProfile);
 // NEW ROUTE: Upload Resume
 // Accepts a single file with field name "resume"
 router.route("/resume").patch(
-    verifyJWT, 
+    verifyJWT,
+    sensitiveLimiter, 
     upload.single("resume"), 
     uploadResume
 );
@@ -20,6 +22,7 @@ router.route("/resume").patch(
 
 router.route("/banner").patch(
     verifyJWT,
+    sensitiveLimiter,
     upload.single("banner"), // Field name must match frontend
     updateBanner
 );

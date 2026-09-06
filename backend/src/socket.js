@@ -35,7 +35,7 @@ io.on("connection", (socket) => {
     // 2. Broadcast online status to everyone
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
-    // 3. 🔥 Handle "markAsRead" - When receiver is viewing a chat and receives a message
+    // 3. Handle "markAsRead" - When receiver is viewing a chat and receives a message
     socket.on("markAsRead", async ({ conversationId }) => {
         if (!userId || !conversationId) return;
 
@@ -68,11 +68,11 @@ io.on("connection", (socket) => {
                         conversationId: conversationId.toString(),
                         readBy: userId
                     });
-                    console.log(`✅ [SOCKET] Blue tick: Notified sender (${senderId}) - ${result.modifiedCount} messages marked read`);
+                    console.log(`[SOCKET] Blue tick: Notified sender (${senderId}) - ${result.modifiedCount} messages marked read`);
                 }
             }
         } catch (err) {
-            console.error("❌ markAsRead error:", err.message);
+            console.error("markAsRead error:", err.message);
         }
     });
 

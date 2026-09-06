@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
+import { chatLimiter } from "../middlewares/rateLimit.middleware.js";
 
 import { 
     sendConnectionRequest, 
@@ -13,6 +14,7 @@ import {
 const router = Router();
 
 router.use(verifyJWT); // Apply verifyJWT to all routes automatically
+router.use(chatLimiter); // Rate limit all chat routes (60 req/min)
 
 // --- CONNECTION REQUESTS ---
 router.route("/request").post(sendConnectionRequest);       // Send a request
